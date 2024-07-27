@@ -1,0 +1,65 @@
+version: '2'
+
+networks:
+  registrynet:
+    driver: bridge
+
+services:
+  redis:
+    image: dimaskiddo/alpine:keydb-6.2
+    user: root
+    networks:
+      - registrynet
+    volumes:
+      - ./redis:/var/lib/keydb/data
+    restart: always
+
+  registry:
+    image: registry:2
+    networks:
+      - registrynet
+    environment:
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM=Registry
+      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+      - REGISTRY_HTTP_TLS_CERTIFICATE=/certs/example_com.crt
+      - REGISTRY_HTTP_TLS_KEY=/certs/example_com.key
+      - REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=redis
+      - REGISTRY_REDIS_ADDR=redis:6379
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+    volumes:
+      - ./registry/data:/var/lib/registry
+      - ./registry/auth:/auth
+      - ./haproxy/certs:/certs
+    depends_on:
+      - redis
+    restart: always
+
+  registry-ui:
+    image: joxit/docker-registry-ui:static
+    networks:
+      - registrynet
+    environment:
+      - REGISTRY_TITLE=Private Registry
+      - REGISTRY_URL=https://registry:5000
+      - PULL_URL=registry.example.com
+      - DELETE_IMAGES=true
+    depends_on:
+      - registry
+    restart: always
+
+  haproxy:
+    image: haproxy:2.2-alpine
+    networks:
+      - registrynet
+    ports:
+      - 80:80
+      - 443:443
+      - 9000:9000
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./haproxy/certs:/certs
+    depends_on:
+      - registry-ui
+      - registry
+    restart: always
