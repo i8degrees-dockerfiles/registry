@@ -1,3 +1,6 @@
+# 1. https://github.com/dimaskiddo/docker-registry-stack
+---
+
 version: '2'
 
 networks:
